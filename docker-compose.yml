@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database Service
+  db:
+    image: postgres:16-alpine # Using a lightweight PostgreSQL image
+    restart: always
+    environment:
+      POSTGRES_DB: comments_db      # Database name
+      POSTGRES_USER: user           # Database user
+      POSTGRES_PASSWORD: password   # Database password
+    ports:
+      - "5432:5432" # Map host port 5432 to container port 5432
+    volumes:
+      - db_data:/var/lib/postgresql/data # Persistent volume for database data
+    healthcheck: # Health check to ensure DB is ready before backend starts
+      test: ["CMD-SHELL", "pg_isready -U user -d comments_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # NestJS Backend Service
+  backend:
+    build:
+      context: ./backend # Build context is the 'backend' directory
+      dockerfile: Dockerfile # Use the Dockerfile in the 'backend' directory
+    restart: always
+    ports:
+      - "3000:3000" # Map host port 3000 to container port 3000
+    environment:
+      DATABASE_HOST: db             # Hostname of the database service (matches service name)
+      DATABASE_PORT: 5432
+      DATABASE_USERNAME: user
+      DATABASE_PASSWORD: password
+      DATABASE_NAME: comments_db
+      JWT_SECRET: yourStrongSecretKeyHere # Placeholder for JWT secret, will be used later
+    depends_on:
+      db:
+        condition: service_healthy # Ensure DB is healthy before starting backend
+    volumes:
+      - ./backend:/app # Mount the backend code into the container for live reloading (dev only)
+      - /app/node_modules # Exclude node_modules from host mount to avoid issues
+    # Command to run the NestJS app in watch mode for development
+    command: npm run start:dev
+
+volumes:
+  db_data: # Define the named volume for PostgreSQL data persistence
